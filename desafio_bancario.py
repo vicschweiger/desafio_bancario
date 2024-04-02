@@ -1,16 +1,27 @@
-saldo = 0
+saldo = 2000
+limite_saque = 3
 
 def sacar():
     global saldo
+    global limite_saque
     valor_informado = round(float(input("Digite o valor que deseja sacar:\n")), 2)
+    saque_maximo = 500
 
-    if valor_informado > saldo:
-        print("Saldo Insuficiente!!!")
+    if valor_informado > saque_maximo:
+        saque_maximo_convertido = f"R${saque_maximo:.2f}".replace('.',',')
+        print(f"Não é permitido sacar acima de R${saque_maximo_convertido}.")
     else:
-        saldo -= valor_informado
-        valor_convertido = f"R${valor_informado:.2f}".replace('.',',')
-        saldo_convertido = f"R${saldo:.2f}".replace('.',',')
-        print(f"Você sacou R${valor_convertido}, restam {saldo_convertido}.")
+        if valor_informado > saldo:
+            print("Saldo Insuficiente!!!")
+        else:
+            if limite_saque <= 0:
+                print("Você atingiu o limite de saques diário.")
+            else:
+                saldo -= valor_informado
+                valor_convertido = f"R${valor_informado:.2f}".replace('.',',')
+                saldo_convertido = f"R${saldo:.2f}".replace('.',',')
+                limite_saque -= 1
+                print(f"Você sacou R${valor_convertido}, restam {saldo_convertido}.")
 
 def depositar():
     global saldo

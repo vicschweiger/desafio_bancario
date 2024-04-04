@@ -60,6 +60,67 @@ def consultar_saldo():
     saldo_convertido = f"R${saldo:.2f}".replace('.',',')
     print(f"Seu saldo atual é {saldo_convertido}")
 
+# FUNÇÃO VALIDA SENHA
+
+def verificar_forca_senha():
+    global clientes
+    comprimento_minimo = 8
+    tem_letra_maiuscula = False
+    tem_letra_minuscula = False
+    tem_numero = False
+    tem_caractere_especial = False
+
+    nova_senha = input("Digite a nova senha:\n").strip()
+
+    while True:
+        if len(nova_senha) < comprimento_minimo:
+            print(f"Sua senha é muito curta. Recomenda-se pelo menos {comprimento_minimo} caracteres.")
+            nova_senha = input("Digite a senha novamente:\n").strip()
+            continue
+
+        for char in nova_senha:
+            if  char.isupper():
+                tem_letra_maiuscula = True
+            elif char.islower():
+                tem_letra_minuscula = True
+            elif char.isdigit():
+                tem_numero = True
+            elif not char.isalnum():
+                tem_caractere_especial = True
+
+        sequencias_comuns = ["123456", "abcdef"]
+        for sequencia in sequencias_comuns:
+            if sequencia in nova_senha:
+                print("Sua senha contém uma sequência comum. Tente uma senha mais complexa.")
+                nova_senha = input("Digite a senha novamente:\n").strip()
+                continue
+
+        palavras_comuns = ["password", "123456", "qwerty"]
+        if nova_senha in palavras_comuns:
+            print("Sua senha contém uma sequência comum. Tente uma senha mais complexa.")
+            nova_senha = input("Digite a senha novamente:\n").strip()
+            continue
+        elif not tem_letra_minuscula:
+            print("Sua senha precisa ter pelo menos uma letra minúscula.")
+            nova_senha = input("Digite a senha novamente:\n").strip()
+            continue
+        elif not tem_letra_maiuscula:
+            print("Sua senha precisa ter pelo menos uma letra maiúscula.")
+            nova_senha = input("Digite a senha novamente:\n").strip()
+            continue
+        elif not tem_numero:
+            print("Sua senha precisa ter pelo menos um número.")
+            nova_senha = input("Digite a senha novamente:\n").strip()
+            continue
+        elif not tem_caractere_especial:
+            print("Sua senha precisa ter pelo menos um caractere especial.")
+            nova_senha = input("Digite a senha novamente:\n").strip()
+            continue
+        else:
+            clientes["usuario"]["senha"] = nova_senha
+            break
+
+
 # MENU INICIAL
 
 def menu_inicial():
@@ -94,8 +155,12 @@ def menu_login():
 
 """))
     
+    # Volta ao menu inicial (anterior)
+    
     if entrada == 0:
         print(menu_inicial())
+
+    # Verifica login e senha
 
     elif entrada == 1:
         global clientes
@@ -142,8 +207,12 @@ def menu_criar_conta():
 
 """))
     
+    # Volta ao menu inicial (anterior)
+    
     if entrada == 0:
         print(menu_inicial())
+
+    # Cadastra novo cliente
 
     elif entrada == 1:
 
@@ -162,10 +231,8 @@ def menu_criar_conta():
             clientes["usuario"]["endereco"]["cidade"] = str(input("Digite a cidade:\n"))
             clientes["usuario"]["endereco"]["estado"] = str(input("Digite o estado:\n"))
             clientes["usuario"]["nome_de_usuario"] = input("Digite o nome de usuário:\n")
-            clientes["usuario"]["senha"] = input("Digite a senha:\n")
-            clientes["usuario"]["saldo"] = 0
 
-            # Gera Id e número de conta
+            # Gera Id, número de conta e saldo
 
             numero_de_clientes = len(clientes) - 1
             id_da_conta = numero_de_clientes + 1
@@ -173,6 +240,8 @@ def menu_criar_conta():
 
             clientes["usuario"]["id_da_conta"] = id_da_conta
             clientes["usuario"]["numero_da_conta"] = numero_da_conta
+            clientes["usuario"]["saldo"] = 0
+            print(verificar_forca_senha())
 
             print(menu_login())
 
@@ -185,9 +254,12 @@ def menu_criar_conta():
 
 def menu_operacao():
     while True:
-        entrada = int(input("""
+        entrada = int(input(f"""
 
         #######################MENU#######################
+                            
+            Olá, {clientes['usuario']['nome']},
+            qual operação deseja realizar hoje?
 
                 1. Sacar
                 2. Depositar
@@ -198,7 +270,7 @@ def menu_operacao():
 
         """))
         if entrada == 0:
-            print("Obrigada por usar nossos serviços.")
+            print(f"Obrigada por usar nossos serviços, {clientes['usuario']['nome']}. Volte sempre!")
             print(menu_inicial())
             break
 

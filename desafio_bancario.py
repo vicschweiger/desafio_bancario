@@ -355,4 +355,4 @@ def menu_operacao():
         elif entrada == 4:
             mostra_extrato(extrato)
 
-print(menu_operacao())
+print(menu_inicial())

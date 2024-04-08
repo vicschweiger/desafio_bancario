@@ -66,7 +66,7 @@ def sacar():
 
             if valor_informado > saque_maximo:
                 saque_maximo_convertido = f"R${saque_maximo:.2f}".replace('.',',')
-                print(f"Não é permitido sacar acima de R${saque_maximo_convertido}.")
+                print(f"Não é permitido sacar acima de {saque_maximo_convertido}.")
             else:
                 saldo -= valor_informado
                 valor_convertido = f"R${valor_informado:.2f}".replace('.',',')
@@ -238,7 +238,7 @@ clientes = {
             "cidade": "",
             "estado": ""
         },
-        "nome_de_usuario": "lala",
+        "nome_de_usuario": "",
         "senha": ""
     }
 }
@@ -256,7 +256,7 @@ def menu_criar_conta():
     # Volta ao menu inicial (anterior)
     
     if entrada == 0:
-        print(menu_inicial())
+        menu_inicial()
 
     # Cadastra novo cliente
 
@@ -268,11 +268,13 @@ def menu_criar_conta():
 
         nome_de_usuario = str(input("Digite o nome de usuário:\n"))
 
-        for clientes in clientes.values():
-            if clientes.get("nome_de_usuario") == nome_de_usuario:
+        for cliente_info in clientes.values():
+            if cliente_info.get("nome_de_usuario") == nome_de_usuario:
                 print("Nome de usuário já cadastrado.")
+                return menu_criar_conta() 
 
             else:
+                nome_de_usuario = clientes["usuario"]["nome_de_usuario"]
                 clientes["usuario"]["nome_de_usuario"] = nome_de_usuario
 
                 # Verifica maioridade
@@ -355,4 +357,4 @@ def menu_operacao():
         elif entrada == 4:
             mostra_extrato(extrato)
 
-print(menu_inicial())
+menu_inicial()

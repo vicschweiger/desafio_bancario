@@ -1,4 +1,5 @@
 from datetime import datetime
+import pymongo as pyM
 
 class User:  
     users = []      
@@ -27,11 +28,13 @@ class User:
               """)
         Transactions.operation_menu(user)
     
+    # Solicita nome para cadastro
     @classmethod
     def name_request(cls):
         cls.name = input("\nDigite seu nome: ")
         return cls.name.title()
     
+    # Solicita data de nascimento para cadastro
     @classmethod
     def bd_request(cls):
         while True:
@@ -49,21 +52,25 @@ class User:
                 print("\nVocê ainda não é maior de idade!")
                 continue       
     
+    # Solicita endereço para cadastro
     @classmethod
     def address_request(cls):
         cls.address = input("\nDigite seu endereço: ")
         return cls.address.title()
     
+    # Solicita CPF para cadastro
     @classmethod
     def cpf_request(cls):
         cls.cpf = int(input("\nDigite seu CPF apenas número: "))
         return cls.cpf
     
+    # Solicita nome de usuário (username) para cadastro
     @classmethod
     def username_request(cls):
         cls.username = input("\nDigite seu nome de usuário: ")
         return cls.username
     
+    # Solicita senha (password) para cadastro
     @classmethod
     def password_request(cls):
         while True:
@@ -119,6 +126,7 @@ class User:
         cls.next_id = len(cls.users) + 1
         return cls.next_id
     
+    # Método criar usuário e conta
     @classmethod
     def create_user(cls):
         name = cls.name_request()
@@ -129,14 +137,19 @@ class User:
         new_password = cls.password_request()
         next_id = cls.get_next_id()
         
+        # Cria objeto usuário e conta, adiciona objeto conta ao usuário
         user1 = User(id=next_id, name=name, birth_date=birth_date, address=address, cpf=cpf, username=username, password=new_password)
-        
         account1 = Account(id=next_id, number=1, branch="0001", balance=0, username=username)
-        user1.account = account1  # Associa a conta ao usuário
-        
-        cls.users.append(user1)
-        Account.accounts.append(account1)
-        
+        user1.account = account1
+
+        # Adiciona dicionário usuário e conta no MongoDB
+        MongoDB(db_name="bank").insert_data(collection_name="users", id=user1.id, name=user1.name, 
+                                            birth_date=user1.birth_date, address=user1.address, 
+                                            cpf=user1.cpf, username=user1.username, password=user1.password)
+        MongoDB(db_name="bank").insert_data(collection_name="accounts", id=account1.id, number=account1.number, branch=account1.branch,
+                                               balance=account1.balance, username=account1.username)
+    
+    # Verifica nome de usuário
     @classmethod
     def get_username(cls):
         cls.informed_username = input("\nDigite seu nome de usuário ou digite 0000 para sair: ")
@@ -144,39 +157,50 @@ class User:
         if cls.informed_username == "0000":
             main()
         else:
-            for user in User.users:
-                if user.username == cls.informed_username:
-                    return True
+            mongo = MongoDB(db_name="bank")
+            collection = mongo.db["users"]
+            result = collection.find_one({"username": cls.informed_username})
+            if result:
+                return cls.informed_username
+            else:
+                print("\nUsuário não encontrado!")
+                return False
     
     @classmethod
     def get_password(cls):
-        cls.informed_password = input("\nDigite sua senha: ")
-        for user in User.users:
-            if user.password == cls.informed_password:
-                return True
+        cls.informed_password = input("\nDigite sua senha ou digite 0000 para sair: ")
+    
+        if cls.informed_password == "0000":
+            main()
+            
+        else:
+            return cls.informed_password
     
     # LOGIN - Checa nome de usuário e senha
     @classmethod
     def login(cls):
+        
         while True:
             cls.get_username()
             cls.get_password()
-
-            if cls.informed_username and cls.informed_username:
-                for user in cls.users:
-                    if user.username == cls.informed_username and user.password == cls.informed_password:
-                        return Transactions.operation_menu(user)
-                        
-                print("\nUsuário ou senha inválidos!")
-                continue
-            else:
+            
+            mongo = MongoDB(db_name="bank")
+            users_collection = mongo.db["users"]
+            account_collection =mongo.db["accounts"]
+    
+            user = users_collection.find_one({"username": cls.informed_username, "password": cls.informed_password})
+            account = account_collection.find_one({"id": user["id"]})
+            
+            if  user:
+                user_instance = User(**user)
+                account_instance = Account(**account)
+                Transactions.operation_menu(user_instance, account_instance)
+                break
+            else:       
                 print("\nUsuário ou senha inválidos!")
                 continue
                 
 class Account(User): 
-    
-    accounts = []
-    
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         
@@ -184,12 +208,13 @@ class Account(User):
         for key, value in kwargs.items():
             setattr(self, key, value)
     
+    # Método mostrar saldo
     @classmethod   
-    def show_balance(cls, user):
+    def show_balance(cls, user, account):
         
         cls.user = user
         
-        formatted_balance = f"R${user.account.balance:.2f}".replace('.', ',')
+        formatted_balance = f"R${account.balance:.2f}".replace('.', ',')
         print(f"""
               {50 * '#'}
               
@@ -201,7 +226,7 @@ class Account(User):
     
     # Método Sacar
     @classmethod
-    def deposit(cls, user):
+    def deposit(cls, user, account):
         
         cls.user = user
         
@@ -209,28 +234,30 @@ class Account(User):
             informed_value = int(input("\nDigite o valor que deseja depositar ou 0000 para voltar: "))
             
             if informed_value == 0000:
-                Transactions.operation_menu(user)
+                Transactions.operation_menu(user, account)
                 
             elif informed_value <= 0:
                 print("\nDigite um valor válido!")
                 continue
             
             else:
-                user.account.balance = user.account.balance + informed_value
+                new_balance = account.balance + informed_value
+                account.balance = new_balance
                 
                 formatted_value = f"R${informed_value:.2f}".replace('.', ',')
-                formatted_balance = f"R${user.account.balance:.2f}".replace('.', ',')
+                formatted_balance = f"R${account.balance:.2f}".replace('.', ',')
                 
-                History.new_transaction(user.account, date=datetime.now(), 
+                History.new_transaction(account.id, date=datetime.now(), 
                                         type="depósito", value=informed_value, 
-                                        actual_balance=user.account.balance)
+                                        actual_balance=account.balance)
+                MongoDB("bank").update_balance(new_balance)
                 
                 print(f'\nVocê depositou {formatted_value}, seu saldo atual é {formatted_balance}.')
                 continue
     
     # Método Depositar        
     @classmethod
-    def withdraw(cls, user):
+    def withdraw(cls, user, account):
         
         cls.user = user
         
@@ -238,21 +265,24 @@ class Account(User):
             informed_value = int(input("\nDigite o valor que deseja sacar ou 0000 para voltar: "))
             
             if informed_value == 0000:
-                Transactions.operation_menu(user)
+                Transactions.operation_menu(user, account)
                 
-            elif user.account.balance < informed_value:
+            elif account.balance < informed_value:
                 print("\nSaldo insuficiente.")
                 continue
             
             else:
-                user.account.balance = user.account.balance - informed_value
-                    
-                formatted_value = f"R${informed_value:.2f}".replace('.', ',')
-                formatted_balance = f"R${user.account.balance:.2f}".replace('.', ',')
+                new_balance = account.balance - informed_value
+                account.balance = new_balance
                 
-                History.new_transaction(user, date=datetime.now(), 
+                History.new_transaction(account.id, date=datetime.now(), 
                                         type="saque", value=informed_value, 
-                                        actual_balance=user.account.balance)
+                                        actual_balance=account.balance)
+                
+                MongoDB("bank").update_balance(new_balance)
+                
+                formatted_value = f"R${informed_value:.2f}".replace('.', ',')
+                formatted_balance = f"R${account.balance:.2f}".replace('.', ',')
                 
                 print(f'\nVocê sacou {formatted_value}, seu saldo atual é {formatted_balance}.')
                 continue       
@@ -260,7 +290,8 @@ class Account(User):
 class AdminAccount(Account):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        
+    
+    # Menu Administrador
     @classmethod
     def admin_menu(cls):
         while True:
@@ -269,6 +300,7 @@ class AdminAccount(Account):
                              
                                 1. Mostrar todos usuários cadastrados
                                 2. Mostrar todas contas cadastradas
+                                3. Mostrar coleções do MongoDB
                                 0. Voltar
                                 
                              {50 * '#'} 
@@ -288,6 +320,12 @@ class AdminAccount(Account):
                 case "2":
                     AdminAccount.show_all_accounts()
                     
+                # Mostra coleções do MongoDB
+                case "3":
+                    informed_collection = input("\nDigite o nome da coleção: ")
+                    MongoDB("bank").show_db_data(collection_name=informed_collection)
+                
+                # Entradas inválidas
                 case _:
                     print("Digite uma opção válida.")             
     
@@ -313,13 +351,13 @@ class AdminAccount(Account):
             print(f"\nID: {account.id}")
             print(f"Usuário: {account.username}")
             print(f'Saldo :{account.balance}')
-              
+               
 class Transactions(Account):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     
     @classmethod
-    def operation_menu(cls, user):
+    def operation_menu(cls, user, account):
         
         cls.user = user
         
@@ -342,46 +380,37 @@ class Transactions(Account):
             
             # Função Depósito
             case "1":
-                Account.deposit(user)
+                Account.deposit(user, account)
                 
             # Função Saque
             case "2":
-                Account.withdraw(user)
+                Account.withdraw(user, account)
                 
             #  Função mostrar saldo               
             case "3":
-                Account.show_balance(user)
+                Account.show_balance(user, account)
             
             # Função Extrato
             case "4":
-                History.show_transactions(user)
+                History.show_transactions(user, account)
             
             # Mostra Informações do usuário
             case "5":
-                User.show_info(user)
+                User.show_info(user, account)
                 
             # Demais casos
             case _:
                 print("\nOpção inválida, por favor digite uma opção válida!")
 
 class History(Transactions):
-    
-    transactions = []
-    
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     
     @classmethod
     def new_transaction(cls, user, **kwargs):
-        new_transaction = {
-            'account_id': user.id,
-            'date': kwargs.get('date'),
-            'type': kwargs.get('type'),
-            'value': kwargs.get('value'),
-            'actual_balance': kwargs.get('actual_balance')
-        }
-        
-        cls.transactions.append(new_transaction)  
+        MongoDB("bank").insert_data(collection_name="history", account_id=kwargs.get('id'), 
+                                    date=kwargs.get('date'), type=kwargs.get('type'),
+                                    value=kwargs.get('value'), actual_balance = kwargs.get('actual_balance'))
         
     @classmethod
     def show_transactions(cls, user):
@@ -399,8 +428,31 @@ class History(Transactions):
         print(f"\n{50 * "#"}\n")
         return Transactions.operation_menu(user)
             
+class MongoDB:
+    # Conecta DB
+    def __init__(self, db_name):
+        self.client = pyM.MongoClient("mongodb+srv://vicrastadiz:vicrastadiz@bank.oyt8o6o.mongodb.net/")
+        self.db = self.client[db_name]
+    
+    # Método inserir dados
+    def insert_data(self, collection_name, **kwargs):
+        collection = self.db[collection_name]
+        result = collection.insert_one(kwargs)
+        return result
         
+    # Método consultar dados cadastrados no banco de dados
+    def show_db_data(self, collection_name):
+        collection = self.db[collection_name]
+        for document in collection.find({}):
+            print(document)
+    
+    # Método atualiza saldo      
+    def update_balance(cls, balance):
+        collection = cls.db["accounts"]
+        update_query = {"$set": {"balance": balance}}
+        collection.update_one(update_query)
 
+            
 # Menu Principal      
 def main():
     while True:

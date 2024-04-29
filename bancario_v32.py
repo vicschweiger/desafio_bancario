@@ -2,8 +2,6 @@ from datetime import datetime
 import pymongo as pyM
 
 class User:  
-    users = []      
-    
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
             setattr(self, key, value)
@@ -121,9 +119,12 @@ class User:
             else:
                 return cls.new_password
     
+    # Verifica próximo ID disponível
     @classmethod
     def get_next_id(cls):
-        cls.next_id = len(cls.users) + 1
+        mongo_instance = MongoDB("bank")
+        total_usuarios = mongo_instance.show_db_users()
+        cls.next_id = total_usuarios + 1
         return cls.next_id
     
     # Método criar usuário e conta
@@ -141,7 +142,7 @@ class User:
         user1 = User(id=next_id, name=name, birth_date=birth_date, address=address, cpf=cpf, username=username, password=new_password)
         account1 = Account(id=next_id, number=1, branch="0001", balance=0, username=username)
         user1.account = account1
-
+        
         # Adiciona dicionário usuário e conta no MongoDB
         MongoDB(db_name="bank").insert_data(collection_name="users", id=user1.id, name=user1.name, 
                                             birth_date=user1.birth_date, address=user1.address, 
@@ -166,6 +167,7 @@ class User:
                 print("\nUsuário não encontrado!")
                 return False
     
+    # Verifica senha
     @classmethod
     def get_password(cls):
         cls.informed_password = input("\nDigite sua senha ou digite 0000 para sair: ")
@@ -186,10 +188,10 @@ class User:
             
             mongo = MongoDB(db_name="bank")
             users_collection = mongo.db["users"]
-            account_collection =mongo.db["accounts"]
+            accounts_collection = mongo.db["accounts"]
     
             user = users_collection.find_one({"username": cls.informed_username, "password": cls.informed_password})
-            account = account_collection.find_one({"id": user["id"]})
+            account = accounts_collection.find_one({"id": user["id"]})
             
             if  user:
                 user_instance = User(**user)
@@ -203,7 +205,6 @@ class User:
 class Account(User): 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        
         
         for key, value in kwargs.items():
             setattr(self, key, value)
@@ -224,7 +225,7 @@ class Account(User):
               
               """)
     
-    # Método Sacar
+    # Método Depositar
     @classmethod
     def deposit(cls, user, account):
         
@@ -246,16 +247,17 @@ class Account(User):
                 
                 formatted_value = f"R${informed_value:.2f}".replace('.', ',')
                 formatted_balance = f"R${account.balance:.2f}".replace('.', ',')
-                
-                History.new_transaction(account.id, date=datetime.now(), 
+                           
+                History.new_transaction(id=account.id, date=datetime.now(), 
                                         type="depósito", value=informed_value, 
                                         actual_balance=account.balance)
-                MongoDB("bank").update_balance(new_balance)
+                
+                MongoDB("bank").update_balance(account.id, new_balance)
                 
                 print(f'\nVocê depositou {formatted_value}, seu saldo atual é {formatted_balance}.')
                 continue
     
-    # Método Depositar        
+    # Método Sacar        
     @classmethod
     def withdraw(cls, user, account):
         
@@ -275,11 +277,11 @@ class Account(User):
                 new_balance = account.balance - informed_value
                 account.balance = new_balance
                 
-                History.new_transaction(account.id, date=datetime.now(), 
+                History.new_transaction(id=account.id, date=datetime.now(), 
                                         type="saque", value=informed_value, 
                                         actual_balance=account.balance)
                 
-                MongoDB("bank").update_balance(new_balance)
+                MongoDB("bank").update_balance(account.id, new_balance)
                 
                 formatted_value = f"R${informed_value:.2f}".replace('.', ',')
                 formatted_balance = f"R${account.balance:.2f}".replace('.', ',')
@@ -361,72 +363,79 @@ class Transactions(Account):
         
         cls.user = user
         
-        entry = input(f"""
-                        {23 * '#'} MENU {23 * '#'}
-                        
-                            1. Depósito
-                            2. Saque
-                            3. Consultar Saldo
-                            4. Extrato
-                            0. Sair e Voltar
+        while True:
+            entry = input(f"""
+                            {23 * '#'} MENU {23 * '#'}
                             
-                        {50 * '#'} 
-                        """)
-        match entry:
-            
-            # Volta ao menu anterior
-            case "0":
-                main()
-            
-            # Função Depósito
-            case "1":
-                Account.deposit(user, account)
+                                1. Depósito
+                                2. Saque
+                                3. Consultar Saldo
+                                4. Extrato
+                                0. Sair e Voltar
+                                
+                            {50 * '#'} 
+                            """)
+            match entry:
                 
-            # Função Saque
-            case "2":
-                Account.withdraw(user, account)
+                # Volta ao menu anterior
+                case "0":
+                    main()
+                    break
                 
-            #  Função mostrar saldo               
-            case "3":
-                Account.show_balance(user, account)
-            
-            # Função Extrato
-            case "4":
-                History.show_transactions(user, account)
-            
-            # Mostra Informações do usuário
-            case "5":
-                User.show_info(user, account)
+                # Função Depósito
+                case "1":
+                    Account.deposit(user, account)
+                    
+                # Função Saque
+                case "2":
+                    Account.withdraw(user, account)
+                    
+                #  Função mostrar saldo               
+                case "3":
+                    Account.show_balance(user, account)
+                    continue
                 
-            # Demais casos
-            case _:
-                print("\nOpção inválida, por favor digite uma opção válida!")
+                # Função Extrato
+                case "4":
+                    History.show_transactions(user, account)
+                
+                # Mostra Informações do usuário
+                case "5":
+                    User.show_info(user, account)
+                    
+                # Demais casos
+                case _:
+                    print("\nOpção inválida, por favor digite uma opção válida!")
 
 class History(Transactions):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     
     @classmethod
-    def new_transaction(cls, user, **kwargs):
+    def new_transaction(cls, **kwargs):
         MongoDB("bank").insert_data(collection_name="history", account_id=kwargs.get('id'), 
                                     date=kwargs.get('date'), type=kwargs.get('type'),
                                     value=kwargs.get('value'), actual_balance = kwargs.get('actual_balance'))
         
     @classmethod
-    def show_transactions(cls, user):
-        print(f"\nConta: {user.account.id}")
-        print(f"\nSaldo: {user.account.balance:.2f}".replace('.', ','))
+    def show_transactions(cls, user, account):
+        db = MongoDB("bank")
+        history_collection = db.db["history"]
+        
+        print(f"\nConta: {user.id}")
+        print(f"Usuário: {user.username}")
+        print(f"\nSaldo: {account.balance:.2f}".replace('.', ','))
         print(f"\n{50 * "#"}\n")
-        print("""   DATA    |   HORA    |       Operação        |   Valor   |   Saldo   """)
               
-        for transaction in cls.transactions:
+        for transaction in history_collection.find({"account_id": user.id}):
             
             formatted_value = f"R${transaction['value']:.2f}".replace('.', ',')
             formatted_balance = f"R${transaction['actual_balance']:.2f}".replace('.', ',')
             print(f"{transaction['date']} | {transaction['type'].capitalize()} | {formatted_value} | {formatted_balance}")
-            
+        
+        print("\nFIM DO DEMONSTRATIVO")
         print(f"\n{50 * "#"}\n")
-        return Transactions.operation_menu(user)
+        return Transactions.operation_menu(user, account)
             
 class MongoDB:
     # Conecta DB
@@ -440,6 +449,12 @@ class MongoDB:
         result = collection.insert_one(kwargs)
         return result
         
+    # Método mostrar número de usuários
+    def show_db_users(self):
+        users_collection = self.db["users"]
+        total_usuários = users_collection.count_documents({})
+        return total_usuários
+        
     # Método consultar dados cadastrados no banco de dados
     def show_db_data(self, collection_name):
         collection = self.db[collection_name]
@@ -447,10 +462,10 @@ class MongoDB:
             print(document)
     
     # Método atualiza saldo      
-    def update_balance(cls, balance):
+    def update_balance(cls, criteria, balance):
         collection = cls.db["accounts"]
         update_query = {"$set": {"balance": balance}}
-        collection.update_one(update_query)
+        collection.update_one({"id": criteria}, update_query)
 
             
 # Menu Principal      
